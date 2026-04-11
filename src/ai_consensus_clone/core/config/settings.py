@@ -6,10 +6,17 @@ class Settings(BaseSettings):
     data_dir: str = "./data"
     bm25_index_dir: str = "./data/indices/bm25"
 
-    llm_provider: str = "none"   # none | openai
+    # none | openai | ollama
+    llm_provider: str = "none"
     llm_api_key: str = ""
-    llm_model: str = "gpt-4.1-mini"
-    llm_timeout: float = 45.0
+
+    # modelo y timeout
+    llm_model: str = "qwen2.5:72b-instruct"
+    llm_timeout: float = 120.0
+
+    # para Ollama
+    llm_base_url: str = "http://localhost:11434"
 
     class Config:
         env_file = ".env"
+        case_sensitive = False
