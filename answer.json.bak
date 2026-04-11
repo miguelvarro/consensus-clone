@@ -1,0 +1,139 @@
+﻿{
+    "q":  "Does creatine increase muscle strength?",
+    "conclusion":  "He encontrado literatura relacionada. A continuación incluyo evidencias (fragmentos) extraÃ­das de los textos disponibles para que puedas verificar rapidamente la relevancia.",
+    "confidence":  "baja",
+    "citations":  [
+                      {
+                          "paper_id":  "W1928790458",
+                          "doi":  "10.1113/jphysiol.2006.107359",
+                          "title":  "Creatine supplementation augments the increase in satellite cell and myonuclei number in human skeletal muscle induced by strength training"
+                      },
+                      {
+                          "paper_id":  "W4368376103",
+                          "doi":  "10.3389/fpubh.2023.1062832",
+                          "title":  "The role of resistance training and creatine supplementation on oxidative stress, antioxidant defense, muscle strength, and quality of life in older adults"
+                      },
+                      {
+                          "paper_id":  "W2765246109",
+                          "doi":  "10.2147/oajsm.s123529",
+                          "title":  "Effect of creatine supplementation during resistance training on lean tissue mass and muscular strength in older adults: a meta-analysis"
+                      },
+                      {
+                          "paper_id":  "W4403835094",
+                          "doi":  "10.3390/nu16213665",
+                          "title":  "Effects of Creatine Supplementation and Resistance Training on Muscle Strength Gains in Adults \u003c50 Years of Age: A Systematic Review and Meta-Analysis"
+                      },
+                      {
+                          "paper_id":  "W2765841554",
+                          "doi":  "10.3390/nu9111169",
+                          "title":  "Effects of Creatine Supplementation on Muscle Strength and Optimal Individual Post-Activation Potentiation Time of the Upper Body in Canoeists"
+                      }
+                  ],
+    "evidences":  [
+                      {
+                          "paper_id":  "W1928790458",
+                          "doi":  "10.1113/jphysiol.2006.107359",
+                          "title":  "Creatine supplementation augments the increase in satellite cell and myonuclei number in human skeletal muscle induced by strength training",
+                          "span":  "No changes were observed in the control group (CON). In conclusion, the present study demonstrates for the first time that creatine supplementation in combination with strength training amplifies the trainingâinduced increase in satellite cell number and myonuclei concentration in human skeletal muscle fibres, thereby allowing an enhanced muscle fibre growth in response to strength training.",
+                          "score":  1.6
+                      },
+                      {
+                          "paper_id":  "W1928790458",
+                          "doi":  "10.1113/jphysiol.2006.107359",
+                          "title":  "Creatine supplementation augments the increase in satellite cell and myonuclei number in human skeletal muscle induced by strength training",
+                          "span":  "The present study investigated the influence of creatine and protein supplementation on satellite cell frequency and number of myonuclei in human skeletal muscle during 16 weeks of heavyâresistance training. In a doubleâblinded design 32 healthy, male subjects (19â26 years) were assigned to strength training (STR) while receiving a timed intake of creatine (STRâCRE) ( n = 9), protein (STRâPRO) ( n = 8) or placebo (STRâCON) ( n = 8), or serving as a nonâtraining control group (CON) ( n = 7).",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W1928790458",
+                          "doi":  "10.1113/jphysiol.2006.107359",
+                          "title":  "Creatine supplementation augments the increase in satellite cell and myonuclei number in human skeletal muscle induced by strength training",
+                          "span":  "Muscle mean fibre (MFA) area was determined after histochemical analysis. All training regimes were found to increase the proportion of satellite cells, but significantly greater enhancements were observed with creatine supplementation at week 4 (compared to STRâCON) and at week 8 (compared to STRâPRO and STRâCON) ( P \u003c 0.01â0.05).",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4368376103",
+                          "doi":  "10.3389/fpubh.2023.1062832",
+                          "title":  "The role of resistance training and creatine supplementation on oxidative stress, antioxidant defense, muscle strength, and quality of life in older adults",
+                          "span":  "Background The aim of this study was to evaluate the effect of resistance training (RT) with creatine monohydrate supplementation (CS) on serum levels of 8-hydroxydeoxyguanosine (8-OHdG), malondialdehyde (MDA), glutathione peroxidase (GPX), and total antioxidant capacity (TAC) in older adults. Objectives This study evaluated the effect of resistance training with creatine monohydrate supplementation on oxidative stress and antioxidant defense, muscle strength and quality of life in older adults.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4368376103",
+                          "doi":  "10.3389/fpubh.2023.1062832",
+                          "title":  "The role of resistance training and creatine supplementation on oxidative stress, antioxidant defense, muscle strength, and quality of life in older adults",
+                          "span":  "Objectives This study evaluated the effect of resistance training with creatine monohydrate supplementation on oxidative stress and antioxidant defense, muscle strength and quality of life in older adults. Methods We examined 45 non-athlete volunteer older men and women (mean, 68.1 Â± 7.2 years old), were randomly selected and divided into three groups of 15: RT with creatine supplementation (RT + CS), RT with placebo (RT + P) and control group.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4368376103",
+                          "doi":  "10.3389/fpubh.2023.1062832",
+                          "title":  "The role of resistance training and creatine supplementation on oxidative stress, antioxidant defense, muscle strength, and quality of life in older adults",
+                          "span":  "Conclusion Regular resistance training can be recommended as a very suitable non-pharmacological approach to strengthen the bodyâs antioxidant system, muscle strength and quality of life in older adults. There are no definite findings on the role of creatine on the antioxidant system and quality of life in older adults, but the use of this supplement in addition to RT can double the amount of strength gained from resistance training.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765246109",
+                          "doi":  "10.2147/oajsm.s123529",
+                          "title":  "Effect of creatine supplementation during resistance training on lean tissue mass and muscular strength in older adults: a meta-analysis",
+                          "span":  "The loss of muscle mass and strength with aging results in significant functional impairment. Creatine supplementation has been used in combination with resistance training as a strategy for increasing lean tissue mass and muscle strength in older adults, but results across studies are equivocal.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765246109",
+                          "doi":  "10.2147/oajsm.s123529",
+                          "title":  "Effect of creatine supplementation during resistance training on lean tissue mass and muscular strength in older adults: a meta-analysis",
+                          "span":  "Creatine supplementation has been used in combination with resistance training as a strategy for increasing lean tissue mass and muscle strength in older adults, but results across studies are equivocal. We conducted a systematic review and meta-analysis of randomized controlled trials of creatine supplementation during resistance training in older adults with lean tissue mass, chest press strength, and leg press strength as outcomes by searching PubMed and SPORTDiscus databases.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765246109",
+                          "doi":  "10.2147/oajsm.s123529",
+                          "title":  "Effect of creatine supplementation during resistance training on lean tissue mass and muscular strength in older adults: a meta-analysis",
+                          "span":  "Creatine supplementation resulted in greater increases in lean tissue mass (mean difference =1.37 kg [95% CI =0.97â1.76]; p\u003c0.00001), chest press strength (standardized mean difference [SMD] =0.35 [0.16â0.53]; p=0.0002), and leg press strength (SMD =0.24 [0.05â0.43]; p=0.01). A number of mechanisms exist by which creatine may increase lean tissue mass and muscular strength.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4403835094",
+                          "doi":  "10.3390/nu16213665",
+                          "title":  "Effects of Creatine Supplementation and Resistance Training on Muscle Strength Gains in Adults \u003c50 Years of Age: A Systematic Review and Meta-Analysis",
+                          "span":  "Background: Numerous meta-analyses have assessed the efficacy of creatine supplementation in increasing muscle strength. However, most have not considered the effect of the participantsâ age, training duration, or other confounding variables on strength outcomes.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4403835094",
+                          "doi":  "10.3390/nu16213665",
+                          "title":  "Effects of Creatine Supplementation and Resistance Training on Muscle Strength Gains in Adults \u003c50 Years of Age: A Systematic Review and Meta-Analysis",
+                          "span":  "However, most have not considered the effect of the participantsâ age, training duration, or other confounding variables on strength outcomes. Therefore, the purpose of this study was to consider the effect of these variables on the potential efficacy of creatine supplementation and resistance training for improving measures of muscle strength.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W4403835094",
+                          "doi":  "10.3390/nu16213665",
+                          "title":  "Effects of Creatine Supplementation and Resistance Training on Muscle Strength Gains in Adults \u003c50 Years of Age: A Systematic Review and Meta-Analysis",
+                          "span":  "Therefore, the purpose of this study was to consider the effect of these variables on the potential efficacy of creatine supplementation and resistance training for improving measures of muscle strength. Methods: Four databases were searched (MEDLINE, Scopus, Embase, and SPORTDiscus) with a search end date of 22 May 2024.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765841554",
+                          "doi":  "10.3390/nu9111169",
+                          "title":  "Effects of Creatine Supplementation on Muscle Strength and Optimal Individual Post-Activation Potentiation Time of the Upper Body in Canoeists",
+                          "span":  "Creatine supplementation reduces the impact of muscle fatigue on post-activation potentiation (PAP) of the lower body, but its effects on the upper body remain unknown. This study examined the effects of creatine supplementation on muscle strength, explosive power, and optimal individual PAP time of the upper body during a set of complex training bouts in canoeists.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765841554",
+                          "doi":  "10.3390/nu9111169",
+                          "title":  "Effects of Creatine Supplementation on Muscle Strength and Optimal Individual Post-Activation Potentiation Time of the Upper Body in Canoeists",
+                          "span":  "This study examined the effects of creatine supplementation on muscle strength, explosive power, and optimal individual PAP time of the upper body during a set of complex training bouts in canoeists. Seventeen male high school canoeists performed a bench row for one repetition at maximum strength and conducted complex training bouts to determine the optimal individual timing of PAP and distance of overhead medicine ball throw before and after the supplementation.",
+                          "score":  1.2000000000000002
+                      },
+                      {
+                          "paper_id":  "W2765841554",
+                          "doi":  "10.3390/nu9111169",
+                          "title":  "Effects of Creatine Supplementation on Muscle Strength and Optimal Individual Post-Activation Potentiation Time of the Upper Body in Canoeists",
+                          "span":  "Seventeen male high school canoeists performed a bench row for one repetition at maximum strength and conducted complex training bouts to determine the optimal individual timing of PAP and distance of overhead medicine ball throw before and after the supplementation. Subjects were assigned to a creatine or placebo group, and later consumed 20 g of creatine or carboxymethyl cellulose per day for six days.",
+                          "score":  0.8
+                      }
+                  ]
+}

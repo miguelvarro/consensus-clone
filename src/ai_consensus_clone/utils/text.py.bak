@@ -1,0 +1,112 @@
+# -*- coding: utf-8 -*-
+from __future__ import annotations
+
+import html
+import re
+
+_WS_RE = re.compile(r"\s+")
+
+# Mojibake hints:
+# - Ã / Â are very typical when UTF-8 bytes were mis-decoded as latin-1/cp1252
+# - â€™ â€“ â€” â€œ â€ etc. are typical “smart punctuation” mojibake sequences
+# - � is the Unicode replacement character (often appears after bad decoding)
+_MOJIBAKE_HINT_RE = re.compile(r"(?:[ÃÂ]|â[€“€”€™“”]|�)")
+
+def _score_mojibake(s: str) -> int:
+    """Higher score = more mojibake-looking junk."""
+    tokens = ("Ã", "Â", "�", "â€“", "â€”", "â€™", "â€œ", "â€", "â€", "â€")
+    return sum(s.count(t) for t in tokens)
+
+def _try_redecode(s: str, wrong_text_encoding: str, intended_encoding: str) -> str | None:
+    """
+    Attempt recovery when text was decoded with the wrong single-byte encoding.
+    Example: original UTF-8 bytes were decoded as cp1252, producing mojibake.
+    We re-encode with cp1252 (to recover original bytes) then decode as UTF-8.
+    Uses strict to avoid silently dropping accents.
+    """
+    try:
+        raw = s.encode(wrong_text_encoding, errors="strict")
+        return raw.decode(intended_encoding, errors="strict")
+    except Exception:
+        return None
+
+def _try_fix_mojibake(s: str) -> str:
+    if not s:
+        return s
+
+    # Only attempt if it *looks* like mojibake; otherwise leave intact.
+    if not _MOJIBAKE_HINT_RE.search(s):
+        return s
+
+    candidates: list[str] = []
+
+    # Common cases: UTF-8 bytes decoded as latin-1 or cp1252.
+    for wrong in ("latin-1", "cp1252"):
+        fixed = _try_redecode(s, wrong, "utf-8")
+        if fixed:
+            candidates.append(fixed)
+
+    if not candidates:
+        return s
+
+    # Choose candidate that reduces mojibake the most.
+    best = min(candidates, key=_score_mojibake)
+    return best if _score_mojibake(best) < _score_mojibake(s) else s
+
+def clean_text(text: str) -> str:
+    """
+    Cleans text for downstream NLP:
+    1) Unescape HTML entities
+    2) Attempt mojibake repair (safe: strict, heuristic-gated)
+    3) Fix common smart punctuation remnants (only the real sequences)
+    4) Normalize whitespace
+    """
+    if text is None:
+        return ""
+
+    s = str(text)
+
+    # 1) HTML entities (&lt; &gt; &amp; etc.)
+    s = html.unescape(s)
+
+    # 2) Repair mojibake (only if it looks like it)
+    s = _try_fix_mojibake(s)
+
+    # 3) Fix common “smart punctuation” mojibake sequences (ONLY these exact patterns)
+    # If the input was actually correct UTF-8, these won’t match and nothing breaks.
+    replacements = {
+        "â€™": "’",
+        "â€˜": "‘",
+        "â€œ": "“",
+        "â€": "”",
+        "â€": "”",
+        "â€": "",     # stray lead-in sometimes
+        "â€“": "–",
+        "â€”": "—",
+        "Â±": "±",
+        "Â": "",      # stray non-breaking-space marker
+    }
+    for bad, good in replacements.items():
+        s = s.replace(bad, good)
+
+    # Optional: if you *know* you never want curly quotes, uncomment to normalize:
+    # s = s.replace("’", "'").replace("“", '"').replace("”", '"').replace("‘", "'")
+
+    # 4) Normalize whitespace
+    s = _WS_RE.sub(" ", s).strip()
+
+    return s
+
+
+if __name__ == "__main__":
+    tests = [
+        "Español: áéíóú ñ ü",
+        "Mojibake: EspaÃ±ol: Ã¡Ã©Ã­Ã³Ãº",
+        "Quotes: Itâ€™s fine â€“ really â€” fine",
+        "Already fine: “smart quotes” — ok",
+    ]
+    for t in tests:
+        print("IN :", t)
+        print("OUT:", clean_text(t))
+        print()
+

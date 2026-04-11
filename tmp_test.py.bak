@@ -1,0 +1,5 @@
+from ai_consensus_clone.utils.text import clean_text
+
+s = "heavyâ€resistance doubleâ€blinded 19â€“26 KjÃ¦r"
+print(clean_text(s))
+
