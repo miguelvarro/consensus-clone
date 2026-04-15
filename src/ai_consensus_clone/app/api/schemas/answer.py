@@ -11,6 +11,7 @@ class Citation(BaseModel):
     paper_id: str
     doi: Optional[str] = None
     title: str
+    citation_count: Optional[int] = None
 
 
 class Evidence(BaseModel):
@@ -21,10 +22,26 @@ class Evidence(BaseModel):
     score: float
 
 
+class PaperStanceSchema(BaseModel):
+    paper_id: str
+    stance: str
+    strength: str
+    evidence: str
+    rationale: str
+
+
+class EvidenceBreakdown(BaseModel):
+    support: int
+    contradict: int
+    neutral: int
+    dominant_stance: str
+
+
 class AnswerResponse(BaseModel):
     q: str
     conclusion: str
     confidence: str
     citations: List[Citation]
     evidences: List[Evidence] = []
-
+    paper_stances: List[PaperStanceSchema] = []
+    evidence_breakdown: EvidenceBreakdown

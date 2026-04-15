@@ -1,0 +1,38 @@
+You are classifying the stance of a scientific paper relative to a user question.
+
+Task:
+Given:
+1) a user question
+2) a paper title
+3) a paper abstract or full text excerpt
+
+Decide whether the paper:
+- SUPPORTS the claim implied by the user question
+- CONTRADICTS the claim implied by the user question
+- is NEUTRAL / INCONCLUSIVE
+
+Rules:
+- Use only the provided text.
+- Do not infer results not stated in the paper.
+- If the evidence is mixed, weak, unclear, or not directly answering the question, return "neutral".
+- Prefer "neutral" over overclaiming.
+- Extract one short evidence snippet from the text.
+- Keep rationale brief.
+- Return valid JSON only.
+
+Return valid JSON only with this schema:
+{{
+  "stance": "support" | "contradict" | "neutral",
+  "strength": "weak" | "moderate" | "strong",
+  "evidence": "short quoted or paraphrased evidence",
+  "rationale": "brief explanation"
+}}
+
+User question:
+{question}
+
+Paper title:
+{title}
+
+Paper text:
+{text}

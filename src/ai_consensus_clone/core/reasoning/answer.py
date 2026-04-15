@@ -9,6 +9,9 @@ from ai_consensus_clone.core.reasoning.evidence_extractor import extract_evidenc
 from ai_consensus_clone.core.retrieval.bm25 import BM25Search
 from ai_consensus_clone.core.retrieval.online import OnlinePaperRetriever
 from ai_consensus_clone.utils.text import clean_text
+from ai_consensus_clone.core.reasoning.prompt_loader import load_prompt
+from ai_consensus_clone.core.reasoning.stance_classifier import classify_papers_stances
+from ai_consensus_clone.core.reasoning.llm_client import LLMClient
 
 try:
     from ai_consensus_clone.core.reasoning.llm_client import build_consensus_answer_with_llm
@@ -184,21 +187,99 @@ class AnswerService:
 
         return "baja"
 
-    def _build_conclusion(
+    def _paper_to_hit(self, paper: Paper, score: float = 0.0) -> Dict[str, Any]:
+        full_text = clean_text(paper.full_text or "")
+        abstract = clean_text(paper.abstract or "")
+
+        return {
+            "paper_id": paper.paper_id,
+            "title": clean_text(paper.title or ""),
+            "year": paper.year,
+            "venue": paper.venue,
+            "doi": paper.doi,
+            "citation_count": paper.citation_count,
+            "score": float(score),
+            "abstract": abstract,
+            "has_full_text": bool(full_text.strip()),
+            "full_text_preview": full_text[:4000] if full_text else "",
+            "oa_url": paper.oa_url,
+            "full_text_source": paper.full_text_source,
+        }
+
+    def _hits_to_papers(self, hits: List[Dict[str, Any]]) -> List[Paper]:
+        papers: List[Paper] = []
+
+        for h in hits:
+            papers.append(
+                Paper(
+                    paper_id=h.get("paper_id", ""),
+                    title=clean_text(h.get("title") or ""),
+                    abstract=clean_text(h.get("abstract") or "") or None,
+                    full_text=clean_text(h.get("full_text_preview") or "") or None,
+                    year=h.get("year"),
+                    venue=h.get("venue"),
+                    doi=h.get("doi"),
+                    authors=[],
+                    oa_url=h.get("oa_url"),
+                    pdf_url=None,
+                    full_text_source=h.get("full_text_source"),
+                    pmc_url=None,
+                    citation_count=h.get("citation_count"),
+                )
+            )
+
+        return papers
+
+    def _aggregate_paper_stances(self, paper_stances: List[Any]) -> Dict[str, Any]:
+        counts = Counter()
+
+        for ps in paper_stances:
+            stance = getattr(ps, "stance", None)
+            if stance in {"support", "contradict", "neutral"}:
+                counts[stance] += 1
+
+        support = counts.get("support", 0)
+        contradict = counts.get("contradict", 0)
+        neutral = counts.get("neutral", 0)
+
+        dominant_stance = "neutral"
+        max_count = max(support, contradict, neutral)
+
+        tied = [
+            label for label, value in {
+                "support": support,
+                "contradict": contradict,
+                "neutral": neutral,
+            }.items()
+            if value == max_count
+        ]
+
+        if max_count == 0:
+            dominant_stance = "neutral"
+        elif len(tied) == 1:
+            dominant_stance = tied[0]
+        else:
+            dominant_stance = "mixed"
+
+        return {
+            "support": support,
+            "contradict": contradict,
+            "neutral": neutral,
+            "dominant_stance": dominant_stance,
+        }
+
+    def _build_conclusion_from_stance_breakdown(
         self,
         q: str,
+        evidence_breakdown: Dict[str, Any],
         evidences: List[Dict[str, Any]],
         n_hits: int,
     ) -> Tuple[str, str]:
-        if not evidences:
-            return (
-                clean_text(
-                    "Con el dataset actual no se han encontrado fragmentos de evidencia suficientemente informativos para responder con solidez a la pregunta."
-                ),
-                "baja",
-            )
+        support = int(evidence_breakdown.get("support", 0) or 0)
+        contradict = int(evidence_breakdown.get("contradict", 0) or 0)
+        neutral = int(evidence_breakdown.get("neutral", 0) or 0)
+        dominant_stance = evidence_breakdown.get("dominant_stance", "neutral")
 
-        mode = self._question_mode(q)
         labels = [self._classify_span(ev["span"]) for ev in evidences]
         counts = Counter(labels)
 
@@ -207,7 +288,7 @@ class AnswerService:
         insufficient = counts.get("insufficient", 0)
 
         unique_papers = len({ev["paper_id"] for ev in evidences})
-        avg_score = sum(ev["score"] for ev in evidences) / max(1, len(evidences))
+        avg_score = sum(ev["score"] for ev in evidences) / max(1, len(evidences)) if evidences else 0.0
 
         confidence = self._compute_confidence(
             n_hits=n_hits,
@@ -219,81 +300,77 @@ class AnswerService:
             insufficient=insufficient,
         )
 
-        if mode == "mixed_check":
-            if positive >= 1 and (mixed >= 1 or insufficient >= 1):
-                return clean_text(
-                    "La evidencia recuperada parece mixta o limitada: hay señales de efecto positivo, pero no de forma suficientemente uniforme como para considerarla concluyente."
-                ), confidence
+        mode = self._question_mode(q)
 
-            if mixed >= 1:
-                return clean_text(
-                    "La evidencia recuperada apunta a resultados mixtos o no concluyentes con el dataset actual."
-                ), confidence
+        if support == 0 and contradict == 0 and neutral == 0:
+            return (
+                clean_text(
+                    "Con el dataset actual no se han encontrado artículos suficientemente informativos para responder con solidez a la pregunta."
+                ),
+                "baja",
+            )
 
-            if positive >= 2:
-                return clean_text(
-                    "La evidencia recuperada no parece claramente mixta: en conjunto apunta más bien a un efecto positivo, aunque con limitaciones."
-                ), confidence
+        if dominant_stance == "support":
+            if contradict >= 1:
+                return (
+                    clean_text(
+                        "En conjunto, la mayoría de los artículos recuperados apoyan la hipótesis planteada, aunque existe cierta evidencia no concluyente o parcialmente contradictoria."
+                    ),
+                    confidence,
+                )
+            return (
+                clean_text(
+                    "En conjunto, la mayoría de los artículos recuperados apoyan la hipótesis planteada."
+                ),
+                confidence,
+            )
 
-        if mode in {"yes_no", "effect_check"}:
-            if positive >= 2 and positive > mixed:
-                return clean_text(
-                    "La evidencia recuperada sugiere un efecto positivo de forma razonable, aunque la solidez final depende de la calidad y cobertura del dataset actual."
-                ), confidence
+        if dominant_stance == "contradict":
+            if support >= 1:
+                return (
+                    clean_text(
+                        "En conjunto, la mayoría de los artículos recuperados no apoyan la hipótesis planteada, aunque existe alguna evidencia a favor."
+                    ),
+                    confidence,
+                )
+            return (
+                clean_text(
+                    "En conjunto, la mayoría de los artículos recuperados no apoyan la hipótesis planteada."
+                ),
+                confidence,
+            )
 
-            if positive >= 1 and (mixed >= 1 or insufficient >= 1):
-                return clean_text(
-                    "La evidencia recuperada apunta en parte a un efecto positivo, pero sigue siendo mixta o limitada."
-                ), confidence
+        if dominant_stance == "mixed":
+            if mode == "mixed_check":
+                return (
+                    clean_text(
+                        "La evidencia recuperada es mixta: los artículos no apuntan todos en la misma dirección y el conjunto no permite una conclusión uniforme."
+                    ),
+                    confidence,
+                )
+            return (
+                clean_text(
+                    "La evidencia recuperada es mixta o inconsistente: distintos artículos apuntan en direcciones diferentes."
+                ),
+                confidence,
+            )
 
-            if mixed >= 1:
-                return clean_text(
-                    "La evidencia recuperada es mixta o no concluyente: algunos fragmentos sugieren efecto, pero el conjunto no permite una respuesta firme."
-                ), confidence
+        if neutral > 0 and support == 0 and contradict == 0:
+            return (
+                clean_text(
+                    "La mayoría de los artículos recuperados no responden de forma directa o concluyente a la pregunta planteada."
+                ),
+                "baja",
+            )
 
-        if positive >= 2:
-            conclusion = "En conjunto, la evidencia recuperada apunta a un efecto positivo, aunque no de manera completamente definitiva."
-        elif positive >= 1 and mixed >= 1:
-            conclusion = "En conjunto, la evidencia recuperada parece mixta: hay indicios de efecto, pero también incertidumbre o inconsistencia."
-        elif mixed >= 1:
-            conclusion = "La evidencia recuperada es mixta o limitada, y no permite una conclusión sólida."
-        else:
-            conclusion = "Con el dataset actual, la evidencia recuperada no es suficiente para responder de manera clara y fiable a la pregunta."
-
-        return clean_text(conclusion), confidence
-
-    def _paper_to_hit(self, paper: Paper, score: float = 0.0) -> Dict[str, Any]:
-        full_text = clean_text(paper.full_text or "")
-        abstract = clean_text(paper.abstract or "")
-
-        return {
-            "paper_id": paper.paper_id,
-            "title": clean_text(paper.title or ""),
-            "year": paper.year,
-            "venue": paper.venue,
-            "doi": paper.doi,
-            "score": float(score),
-            "abstract": abstract,
-            "has_full_text": bool(full_text.strip()),
-            "full_text_preview": full_text[:4000] if full_text else "",
-            "oa_url": paper.oa_url,
-            "full_text_source": paper.full_text_source,
-        }
+        return (
+            clean_text(
+                "Con el dataset actual, la evidencia recuperada no permite una conclusión clara y fiable."
+            ),
+            confidence,
+        )
 
     def _dedupe_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Deduplicación "best version wins".
-
-        Reglas de prioridad:
-        1) mismo paper_id -> conservar mejor versión
-        2) si no hay paper_id fiable, usar título normalizado
-        3) preferir:
-           - full_text_source más fuerte
-           - has_full_text=True
-           - full_text_preview más largo
-           - mayor rerank_score
-           - mayor score
-        """
         if not hits:
             return []
 
@@ -333,28 +410,29 @@ class AnswerService:
             )
 
         def better_hit(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
-            """
-            Devuelve el mejor hit entre a y b.
-            Si gana uno pero el otro tiene algún campo útil vacío, intenta fusionar.
-            """
             best = a if hit_rank_tuple(a) >= hit_rank_tuple(b) else b
             other = b if best is a else a
 
             merged = dict(best)
 
-            # Relleno conservador de campos útiles si faltan en el mejor
-            for field in ("abstract", "oa_url", "doi", "venue", "year", "title", "paper_id"):
-                if not merged.get(field) and other.get(field):
+            for field in (
+                "abstract",
+                "oa_url",
+                "doi",
+                "venue",
+                "year",
+                "title",
+                "paper_id",
+                "citation_count",
+            ):
+                if merged.get(field) in (None, "", []) and other.get(field) not in (None, "", []):
                     merged[field] = other.get(field)
 
-            # Si el mejor no tiene preview pero el otro sí, cógelo
             if not (merged.get("full_text_preview") or "").strip() and (other.get("full_text_preview") or "").strip():
                 merged["full_text_preview"] = other.get("full_text_preview")
 
-            # Sincroniza has_full_text
             merged["has_full_text"] = bool((merged.get("full_text_preview") or "").strip()) or bool(merged.get("has_full_text"))
 
-            # Si el otro tiene source mejor y preview real más largo, úsalo
             best_source = (merged.get("full_text_source") or "").strip().lower()
             other_source = (other.get("full_text_source") or "").strip().lower()
 
@@ -524,6 +602,13 @@ class AnswerService:
                 "confidence": "baja",
                 "citations": [],
                 "evidences": [],
+                "paper_stances": [],
+                "evidence_breakdown": {
+                    "support": 0,
+                    "contradict": 0,
+                    "neutral": 0,
+                    "dominant_stance": "neutral",
+                },
             }
 
         citations: List[Dict[str, Any]] = [
@@ -531,14 +616,28 @@ class AnswerService:
                 "paper_id": h["paper_id"],
                 "doi": h.get("doi"),
                 "title": clean_text(h.get("title") or ""),
+                "citation_count": h.get("citation_count"),
             }
             for h in hits
         ]
 
         evidences = self._extract_evidences_from_hits(q, hits)
 
-        conclusion, confidence = self._build_conclusion(
+        stance_prompt = load_prompt("stance_classification_prompt.txt")
+        papers = self._hits_to_papers(hits)
+        llm_client = LLMClient()
+        paper_stances = classify_papers_stances(
+            llm_client=llm_client,
+            question=q,
+            papers=papers,
+            prompt_template=stance_prompt,
+        )
+
+        evidence_breakdown = self._aggregate_paper_stances(paper_stances)
+
+        conclusion, confidence = self._build_conclusion_from_stance_breakdown(
             q=q,
+            evidence_breakdown=evidence_breakdown,
             evidences=evidences,
             n_hits=len(hits),
         )
@@ -557,4 +656,6 @@ class AnswerService:
             "confidence": confidence,
             "citations": citations,
             "evidences": evidences,
+            "paper_stances": [s.to_dict() for s in paper_stances],
+            "evidence_breakdown": evidence_breakdown,
         }

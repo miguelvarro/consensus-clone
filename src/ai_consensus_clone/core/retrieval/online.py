@@ -147,6 +147,7 @@ class OnlinePaperRetriever:
             authors=authors,
             full_text_source=None,
             pmc_url=None,
+            citation_count=work.get("cited_by_count"),
         )
 
     def _thematic_score(self, query: str, paper: Paper) -> float:

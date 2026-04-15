@@ -85,6 +85,103 @@ def _parse_llm_json(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
+class LLMClient:
+    """
+    Cliente simple para prompts arbitrarios.
+    Lo usamos para stance classification, donde el clasificador necesita
+    hacer llm_client.generate(prompt) y recibir texto JSON.
+    """
+
+    def __init__(self, settings: Optional[Settings] = None):
+        self.settings = settings or Settings()
+
+    def generate(self, prompt: str) -> str:
+        provider = (self.settings.llm_provider or "none").lower().strip()
+
+        if provider == "none":
+            return "{}"
+
+        if provider == "openai":
+            return self._generate_with_openai(prompt)
+
+        if provider == "ollama":
+            return self._generate_with_ollama(prompt)
+
+        return "{}"
+
+    def _generate_with_openai(self, prompt: str) -> str:
+        try:
+            from openai import OpenAI
+        except Exception as e:
+            print(f"[OPENAI RAW PROMPT] import error: {e}")
+            return "{}"
+
+        if not self.settings.llm_api_key:
+            print("[OPENAI RAW PROMPT] missing api key")
+            return "{}"
+
+        try:
+            client = OpenAI(
+                api_key=self.settings.llm_api_key,
+                timeout=self.settings.llm_timeout,
+            )
+
+            response = client.chat.completions.create(
+                model=self.settings.llm_model,
+                temperature=0.1,
+                messages=[
+                    {"role": "user", "content": prompt},
+                ],
+                response_format={"type": "json_object"},
+            )
+
+            text = response.choices[0].message.content or ""
+
+            print("\n[LLM RAW OUTPUT - OPENAI / GENERATE]")
+            print(text[:1500])
+            print()
+
+            return text
+
+        except Exception as e:
+            print(f"[OPENAI RAW PROMPT] request error: {e}")
+            return "{}"
+
+    def _generate_with_ollama(self, prompt: str) -> str:
+        url = self.settings.llm_base_url.rstrip("/") + "/api/chat"
+
+        body = {
+            "model": self.settings.llm_model,
+            "stream": False,
+            "options": {
+                "temperature": 0.1,
+            },
+            "messages": [
+                {"role": "user", "content": prompt},
+            ],
+        }
+
+        try:
+            with httpx.Client(timeout=self.settings.llm_timeout) as client:
+                r = client.post(url, json=body)
+                print(f"[OLLAMA RAW PROMPT] status_code={r.status_code}")
+                r.raise_for_status()
+                data = r.json()
+
+            message = data.get("message") or {}
+            text = message.get("content") or ""
+
+            print("\n[LLM RAW OUTPUT - OLLAMA / GENERATE]")
+            print(text[:1500])
+            print()
+
+            return text
+
+        except Exception as e:
+            print(f"[OLLAMA RAW PROMPT] request error: {e}")
+            return "{}"
+
+
 def build_consensus_answer_with_llm(
     question: str,
     evidences: List[Dict[str, Any]],
@@ -192,16 +289,16 @@ def _build_with_ollama(
     url = settings.llm_base_url.rstrip("/") + "/api/chat"
 
     json_schema = {
-       "type": "object",
-       "properties": {
-           "conclusion": {"type": "string"},
-           "confidence": {
-               "type": "string",
-               "enum": ["alta", "media", "baja"]
-           },
-       },
-       "required": ["conclusion", "confidence"],
-       "additionalProperties": False,
+        "type": "object",
+        "properties": {
+            "conclusion": {"type": "string"},
+            "confidence": {
+                "type": "string",
+                "enum": ["alta", "media", "baja"]
+            },
+        },
+        "required": ["conclusion", "confidence"],
+        "additionalProperties": False,
     }
 
     body = {
