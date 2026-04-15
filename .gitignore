@@ -1,0 +1,15 @@
+# Entorno virtual
+venv/
+
+# Variables de entorno
+.env
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Opcional
+.pytest_cache/
+.mypy_cache/
+.idea/
+.vscode/
