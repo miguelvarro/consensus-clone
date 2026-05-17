@@ -15,13 +15,19 @@ from ai_consensus_clone.core.reasoning.stance_classifier import classify_papers_
 from ai_consensus_clone.core.reasoning.llm_client import LLMClient
 from ai_consensus_clone.core.reasoning.query_analyzer import analyze_query
 from ai_consensus_clone.core.reasoning.confidence import compute_confidence_score
-#from ai_consensus_clone.core.reasoning.outcome_matcher import (
- #   detect_query_outcome,
-  #  compute_outcome_match_score,
-#)
+
+from ai_consensus_clone.core.reasoning.aggregation import (
+    aggregate_weighted_stances,
+)
+
+from ai_consensus_clone.core.reasoning.presentation import (
+    build_consensus_api_output,
+)
 
 try:
-    from ai_consensus_clone.core.reasoning.llm_client import build_consensus_answer_with_llm
+    from ai_consensus_clone.core.reasoning.llm_client import (
+        build_consensus_answer_with_llm,
+    )
 except Exception:
     build_consensus_answer_with_llm = None
 
@@ -89,6 +95,7 @@ POSITIVE_QUESTION_CUES = (
 
 
 class AnswerService:
+
     def __init__(
         self,
         search: BM25Search,
@@ -99,6 +106,7 @@ class AnswerService:
         self.semantic_reranker = SemanticReranker()
 
     def _question_mode(self, q: str) -> str:
+
         ql = clean_text(q).lower()
 
         if any(cue in ql for cue in MIXED_QUESTION_CUES):
@@ -113,6 +121,7 @@ class AnswerService:
         return "generic"
 
     def _classify_span(self, text: str) -> str:
+
         t = clean_text(text).lower()
 
         pos_hits = sum(1 for cue in POSITIVE_CUES if cue in t)
@@ -121,10 +130,13 @@ class AnswerService:
 
         if pos_hits >= 1 and neg_hits == 0:
             return "positive"
+
         if neg_hits >= 1:
             return "mixed"
+
         if unc_hits >= 1:
             return "mixed"
+
         return "insufficient"
 
     def _select_best_evidences(
@@ -133,12 +145,18 @@ class AnswerService:
         max_total: int = 6,
         max_per_paper: int = 2,
     ) -> List[Dict[str, Any]]:
-        evidences = sorted(evidences, key=lambda e: e["score"], reverse=True)
+
+        evidences = sorted(
+            evidences,
+            key=lambda e: e["score"],
+            reverse=True,
+        )
 
         selected: List[Dict[str, Any]] = []
         per_paper_count: Dict[str, int] = {}
 
         for ev in evidences:
+
             pid = ev["paper_id"]
 
             if per_paper_count.get(pid, 0) >= max_per_paper:
@@ -148,7 +166,9 @@ class AnswerService:
             ev_key = clean_text(ev["span"]).lower()
 
             for kept in selected:
+
                 kept_key = clean_text(kept["span"]).lower()
+
                 if ev_key[:180] == kept_key[:180]:
                     redundant = True
                     break
@@ -157,7 +177,10 @@ class AnswerService:
                 continue
 
             selected.append(ev)
-            per_paper_count[pid] = per_paper_count.get(pid, 0) + 1
+
+            per_paper_count[pid] = (
+                per_paper_count.get(pid, 0) + 1
+            )
 
             if len(selected) >= max_total:
                 break
@@ -174,6 +197,7 @@ class AnswerService:
         mixed: int,
         insufficient: int,
     ) -> str:
+
         if n_evidences == 0 or n_unique_papers == 0:
             return "baja"
 
@@ -187,7 +211,11 @@ class AnswerService:
         ):
             return "alta"
 
-        if n_unique_papers >= 2 and n_evidences >= 2 and avg_score >= 0.35:
+        if (
+            n_unique_papers >= 2
+            and n_evidences >= 2
+            and avg_score >= 0.35
+        ):
             return "media"
 
         if insufficient >= max(2, n_evidences // 2):
@@ -195,10 +223,17 @@ class AnswerService:
 
         return "baja"
 
-    def _paper_to_hit(self, paper: Paper, score: float = 0.0) -> Dict[str, Any]:
+    def _paper_to_hit(
+        self,
+        paper: Paper,
+        score: float = 0.0,
+    ) -> Dict[str, Any]:
+
         full_text = clean_text(paper.full_text or "")
         abstract = clean_text(paper.abstract or "")
-        reasoning_text = clean_text(getattr(paper, "reasoning_text", None) or "")
+        reasoning_text = clean_text(
+            getattr(paper, "reasoning_text", None) or ""
+        )
 
         return {
             "paper_id": paper.paper_id,
@@ -210,26 +245,42 @@ class AnswerService:
             "score": float(score),
             "abstract": abstract,
             "has_full_text": bool(full_text.strip()),
-            "full_text_preview": full_text[:4000] if full_text else "",
-            "reasoning_text": reasoning_text[:4000] if reasoning_text else "",
+            "full_text_preview": (
+                full_text[:4000] if full_text else ""
+            ),
+            "reasoning_text": (
+                reasoning_text[:4000]
+                if reasoning_text
+                else ""
+            ),
             "oa_url": paper.oa_url,
             "full_text_source": paper.full_text_source,
         }
 
-    def _hits_to_papers(self, hits: List[Dict[str, Any]]) -> List[Paper]:
+    def _hits_to_papers(
+        self,
+        hits: List[Dict[str, Any]],
+    ) -> List[Paper]:
+
         papers: List[Paper] = []
 
         for h in hits:
+
             papers.append(
                 Paper(
                     paper_id=h.get("paper_id", ""),
                     title=clean_text(h.get("title") or ""),
-                    abstract=clean_text(h.get("abstract") or "") or None,
+                    abstract=(
+                        clean_text(h.get("abstract") or "")
+                        or None
+                    ),
                     full_text=(
-                    clean_text(h.get("reasoning_text") or "")
-                    or clean_text(h.get("full_text_preview") or "")
-                    or clean_text(h.get("abstract") or "")
-                    or None
+                        clean_text(h.get("reasoning_text") or "")
+                        or clean_text(
+                            h.get("full_text_preview") or ""
+                        )
+                        or clean_text(h.get("abstract") or "")
+                        or None
                     ),
                     year=h.get("year"),
                     venue=h.get("venue"),
@@ -237,10 +288,19 @@ class AnswerService:
                     authors=[],
                     oa_url=h.get("oa_url"),
                     pdf_url=None,
-                    full_text_source=h.get("full_text_source"),
+                    full_text_source=h.get(
+                        "full_text_source"
+                    ),
                     pmc_url=None,
-                    citation_count=h.get("citation_count"),
-                    reasoning_text=clean_text(h.get("reasoning_text") or "") or None,
+                    citation_count=h.get(
+                        "citation_count"
+                    ),
+                    reasoning_text=(
+                        clean_text(
+                            h.get("reasoning_text") or ""
+                        )
+                        or None
+                    ),
                 )
             )
 
@@ -254,31 +314,50 @@ class AnswerService:
         counts = Counter()
 
         for ps in paper_stances:
+
             stance = getattr(ps, "stance", None)
-            if stance in {"support", "contradict", "neutral"}:
+
+            if stance in {
+                "support",
+                "contradict",
+                "neutral",
+            }:
                 counts[stance] += 1
 
         support = counts.get("support", 0)
         contradict = counts.get("contradict", 0)
         neutral = counts.get("neutral", 0)
+
         total = support + contradict + neutral
         effective_total = support + contradict
 
         if effective_total == 0:
-            dominant_stance = "neutral"
-        else:
-            support_ratio = support / effective_total
-            contradict_ratio = contradict / effective_total
 
-            # Umbral adaptativo: con pocos papers basta mayoría simple
-            threshold = 0.60 if total <= 5 else 0.67
+            dominant_stance = "neutral"
+
+        else:
+
+            support_ratio = (
+                support / effective_total
+            )
+
+            contradict_ratio = (
+                contradict / effective_total
+            )
+
+            threshold = (
+                0.60 if total <= 5 else 0.67
+            )
 
             if support_ratio >= threshold:
                 dominant_stance = "support"
+
             elif contradict_ratio >= threshold:
                 dominant_stance = "contradict"
+
             elif effective_total >= 2:
                 dominant_stance = "mixed"
+
             else:
                 dominant_stance = "neutral"
 
@@ -288,6 +367,7 @@ class AnswerService:
             "neutral": neutral,
             "dominant_stance": dominant_stance,
         }
+
     def _build_conclusion_from_stance_breakdown(
         self,
         q: str,
@@ -295,21 +375,56 @@ class AnswerService:
         evidences: List[Dict[str, Any]],
         n_hits: int,
     ) -> Tuple[str, str]:
-        support = int(evidence_breakdown.get("support", 0) or 0)
-        contradict = int(evidence_breakdown.get("contradict", 0) or 0)
-        neutral = int(evidence_breakdown.get("neutral", 0) or 0)
-        dominant_stance = evidence_breakdown.get("dominant_stance", "neutral")
 
-        labels = [self._classify_span(ev["span"]) for ev in evidences]
+        support = int(
+            evidence_breakdown.get("support", 0)
+            or 0
+        )
+
+        contradict = int(
+            evidence_breakdown.get(
+                "contradict",
+                0,
+            )
+            or 0
+        )
+
+        neutral = int(
+            evidence_breakdown.get("neutral", 0)
+            or 0
+        )
+
+        dominant_stance = (
+            evidence_breakdown.get(
+                "dominant_stance",
+                "neutral",
+            )
+        )
+
+        labels = [
+            self._classify_span(ev["span"])
+            for ev in evidences
+        ]
+
         counts = Counter(labels)
 
         positive = counts.get("positive", 0)
         mixed = counts.get("mixed", 0)
-        insufficient = counts.get("insufficient", 0)
+        insufficient = counts.get(
+            "insufficient",
+            0,
+        )
 
-        unique_papers = len({ev["paper_id"] for ev in evidences})
+        unique_papers = len(
+            {
+                ev["paper_id"]
+                for ev in evidences
+            }
+        )
+
         avg_score = (
-            sum(ev["score"] for ev in evidences) / max(1, len(evidences))
+            sum(ev["score"] for ev in evidences)
+            / max(1, len(evidences))
             if evidences
             else 0.0
         )
@@ -326,70 +441,133 @@ class AnswerService:
 
         mode = self._question_mode(q)
 
-        if support == 0 and contradict == 0 and neutral == 0:
+        if (
+            support == 0
+            and contradict == 0
+            and neutral == 0
+        ):
+
             return (
                 clean_text(
-                    "Con el dataset actual no se han encontrado artículos suficientemente informativos para responder con solidez a la pregunta."
+                    (
+                        "Con el dataset actual no se "
+                        "han encontrado artículos "
+                        "suficientemente informativos "
+                        "para responder con solidez "
+                        "a la pregunta."
+                    )
                 ),
                 "baja",
             )
 
         if contradict >= 1 and support == 0:
+
             return (
                 clean_text(
-                    "La evidencia disponible indica que la hipótesis es probablemente incorrecta."
+                    (
+                        "La evidencia disponible "
+                        "indica que la hipótesis "
+                        "es probablemente incorrecta."
+                    )
                 ),
                 confidence,
             )
 
         if dominant_stance == "support":
+
             return (
                 clean_text(
-                    "En conjunto, los artículos con señal directa apoyan la hipótesis planteada, aunque puede haber evidencia no concluyente."
+                    (
+                        "En conjunto, los artículos "
+                        "con señal directa apoyan "
+                        "la hipótesis planteada, "
+                        "aunque puede haber "
+                        "evidencia no concluyente."
+                    )
                 ),
                 confidence,
             )
 
         if dominant_stance == "contradict":
+
             return (
                 clean_text(
-                    "En conjunto, los artículos con señal directa no apoyan la hipótesis planteada."
+                    (
+                        "En conjunto, los artículos "
+                        "con señal directa no apoyan "
+                        "la hipótesis planteada."
+                    )
                 ),
                 confidence,
             )
 
         if dominant_stance == "mixed":
+
             if mode == "mixed_check":
+
                 return (
                     clean_text(
-                        "La evidencia recuperada es mixta: hay artículos con señales en direcciones distintas y el conjunto no permite una conclusión uniforme."
+                        (
+                            "La evidencia recuperada "
+                            "es mixta: hay artículos "
+                            "con señales en direcciones "
+                            "distintas y el conjunto "
+                            "no permite una conclusión "
+                            "uniforme."
+                        )
                     ),
                     confidence,
                 )
+
             return (
                 clean_text(
-                    "La evidencia recuperada es inconsistente: distintos artículos apuntan en direcciones diferentes."
+                    (
+                        "La evidencia recuperada "
+                        "es inconsistente: distintos "
+                        "artículos apuntan en "
+                        "direcciones diferentes."
+                    )
                 ),
                 confidence,
             )
 
         if dominant_stance == "neutral":
-            if neutral > 0 and support == 0 and contradict == 0:
+
+            if (
+                neutral > 0
+                and support == 0
+                and contradict == 0
+            ):
+
                 return (
                     clean_text(
-                        "La evidencia disponible es insuficiente o no aborda directamente la pregunta planteada."
+                        (
+                            "La evidencia disponible "
+                            "es insuficiente o no "
+                            "aborda directamente la "
+                            "pregunta planteada."
+                        )
                     ),
                     "baja",
                 )
 
         return (
             clean_text(
-                "Con el dataset actual, la evidencia recuperada no permite una conclusión clara y fiable."
+                (
+                    "Con el dataset actual, "
+                    "la evidencia recuperada "
+                    "no permite una conclusión "
+                    "clara y fiable."
+                )
             ),
             confidence,
         )
 
-    def _dedupe_hits(self, hits: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _dedupe_hits(
+        self,
+        hits: List[Dict[str, Any]],
+    ) -> List[Dict[str, Any]]:
+
         if not hits:
             return []
 
@@ -404,21 +582,52 @@ class AnswerService:
         }
 
         def title_key(hit: Dict[str, Any]) -> str:
-            return clean_text(hit.get("title") or "").lower().strip()
+
+            return clean_text(
+                hit.get("title") or ""
+            ).lower().strip()
 
         def paper_key(hit: Dict[str, Any]) -> str:
-            pid = (hit.get("paper_id") or "").strip()
+
+            pid = (
+                hit.get("paper_id") or ""
+            ).strip()
+
             if pid:
                 return f"pid::{pid}"
+
             tk = title_key(hit)
+
             return f"title::{tk}"
 
-        def hit_rank_tuple(hit: Dict[str, Any]) -> tuple:
-            source = (hit.get("full_text_source") or "").strip().lower()
-            has_full_text = bool(hit.get("has_full_text"))
-            preview_len = len((hit.get("full_text_preview") or "").strip())
-            rerank_score = float(hit.get("rerank_score", 0.0) or 0.0)
-            score = float(hit.get("score", 0.0) or 0.0)
+        def hit_rank_tuple(
+            hit: Dict[str, Any],
+        ) -> tuple:
+
+            source = (
+                hit.get("full_text_source") or ""
+            ).strip().lower()
+
+            has_full_text = bool(
+                hit.get("has_full_text")
+            )
+
+            preview_len = len(
+                (
+                    hit.get("full_text_preview")
+                    or ""
+                ).strip()
+            )
+
+            rerank_score = float(
+                hit.get("rerank_score", 0.0)
+                or 0.0
+            )
+
+            score = float(
+                hit.get("score", 0.0)
+                or 0.0
+            )
 
             return (
                 source_priority.get(source, 0),
@@ -428,8 +637,18 @@ class AnswerService:
                 score,
             )
 
-        def better_hit(a: Dict[str, Any], b: Dict[str, Any]) -> Dict[str, Any]:
-            best = a if hit_rank_tuple(a) >= hit_rank_tuple(b) else b
+        def better_hit(
+            a: Dict[str, Any],
+            b: Dict[str, Any],
+        ) -> Dict[str, Any]:
+
+            best = (
+                a
+                if hit_rank_tuple(a)
+                >= hit_rank_tuple(b)
+                else b
+            )
+
             other = b if best is a else a
 
             merged = dict(best)
@@ -445,111 +664,294 @@ class AnswerService:
                 "citation_count",
                 "reasoning_text",
             ):
-                if merged.get(field) in (None, "", []) and other.get(field) not in (
-                    None,
-                    "",
-                    [],
+
+                if (
+                    merged.get(field)
+                    in (None, "", [])
+                    and other.get(field)
+                    not in (None, "", [])
                 ):
                     merged[field] = other.get(field)
 
-            if not (merged.get("full_text_preview") or "").strip() and (
-                other.get("full_text_preview") or ""
-            ).strip():
-                merged["full_text_preview"] = other.get("full_text_preview")
+            if (
+                not (
+                    merged.get(
+                        "full_text_preview"
+                    )
+                    or ""
+                ).strip()
+                and (
+                    other.get(
+                        "full_text_preview"
+                    )
+                    or ""
+                ).strip()
+            ):
+                merged[
+                    "full_text_preview"
+                ] = other.get(
+                    "full_text_preview"
+                )
 
             merged["has_full_text"] = bool(
-                (merged.get("full_text_preview") or "").strip()
-            ) or bool(merged.get("has_full_text"))
+                (
+                    merged.get(
+                        "full_text_preview"
+                    )
+                    or ""
+                ).strip()
+            ) or bool(
+                merged.get("has_full_text")
+            )
 
-            best_source = (merged.get("full_text_source") or "").strip().lower()
-            other_source = (other.get("full_text_source") or "").strip().lower()
+            best_source = (
+                merged.get("full_text_source")
+                or ""
+            ).strip().lower()
 
-            best_source_rank = source_priority.get(best_source, 0)
-            other_source_rank = source_priority.get(other_source, 0)
+            other_source = (
+                other.get("full_text_source")
+                or ""
+            ).strip().lower()
 
-            best_preview_len = len((merged.get("full_text_preview") or "").strip())
-            other_preview_len = len((other.get("full_text_preview") or "").strip())
+            best_source_rank = (
+                source_priority.get(
+                    best_source,
+                    0,
+                )
+            )
 
-            if other_source_rank > best_source_rank and other_preview_len > 0:
-                merged["full_text_source"] = other.get("full_text_source")
-                merged["full_text_preview"] = other.get("full_text_preview")
-                merged["has_full_text"] = bool(other.get("has_full_text"))
+            other_source_rank = (
+                source_priority.get(
+                    other_source,
+                    0,
+                )
+            )
+
+            best_preview_len = len(
+                (
+                    merged.get(
+                        "full_text_preview"
+                    )
+                    or ""
+                ).strip()
+            )
+
+            other_preview_len = len(
+                (
+                    other.get(
+                        "full_text_preview"
+                    )
+                    or ""
+                ).strip()
+            )
+
+            if (
+                other_source_rank
+                > best_source_rank
+                and other_preview_len > 0
+            ):
+
+                merged[
+                    "full_text_source"
+                ] = other.get(
+                    "full_text_source"
+                )
+
+                merged[
+                    "full_text_preview"
+                ] = other.get(
+                    "full_text_preview"
+                )
+
+                merged[
+                    "has_full_text"
+                ] = bool(
+                    other.get(
+                        "has_full_text"
+                    )
+                )
 
             return merged
 
-        grouped: Dict[str, Dict[str, Any]] = {}
+        grouped: Dict[
+            str,
+            Dict[str, Any],
+        ] = {}
 
         for hit in hits:
+
             key = paper_key(hit)
+
             if key not in grouped:
                 grouped[key] = dict(hit)
+
             else:
-                grouped[key] = better_hit(grouped[key], hit)
+                grouped[key] = better_hit(
+                    grouped[key],
+                    hit,
+                )
 
         deduped = list(grouped.values())
+
         deduped.sort(
-            key=lambda h: float(h.get("rerank_score", h.get("score", 0.0)) or 0.0),
+            key=lambda h: float(
+                h.get(
+                    "rerank_score",
+                    h.get("score", 0.0),
+                )
+                or 0.0
+            ),
             reverse=True,
         )
+
         return deduped
 
-    def _needs_online_fallback(self, local_hits: List[Dict[str, Any]]) -> bool:
+    def _needs_online_fallback(
+        self,
+        local_hits: List[Dict[str, Any]],
+    ) -> bool:
+
         if len(local_hits) < 4:
             return True
 
-        top_scores = [float(h.get("score", 0.0)) for h in local_hits[:5]]
+        top_scores = [
+            float(h.get("score", 0.0))
+            for h in local_hits[:5]
+        ]
+
         if not top_scores:
             return True
 
-        avg_top_score = sum(top_scores[:3]) / max(1, min(3, len(top_scores)))
+        avg_top_score = (
+            sum(top_scores[:3])
+            / max(
+                1,
+                min(3, len(top_scores)),
+            )
+        )
 
-        strong_fulltext_sources = {"pdf", "pmc_html", "existing_full_text"}
-        weak_sources = {"", "openalex_abstract", "pubmed_abstract"}
+        strong_fulltext_sources = {
+            "pdf",
+            "pmc_html",
+            "existing_full_text",
+        }
+
+        weak_sources = {
+            "",
+            "openalex_abstract",
+            "pubmed_abstract",
+        }
 
         strong_count = 0
         weak_or_missing_count = 0
 
         for h in local_hits[:5]:
-            source = (h.get("full_text_source") or "").strip().lower()
+
+            source = (
+                h.get("full_text_source")
+                or ""
+            ).strip().lower()
+
             if source in strong_fulltext_sources:
                 strong_count += 1
-            if source in weak_sources or source not in strong_fulltext_sources:
+
+            if (
+                source in weak_sources
+                or source
+                not in strong_fulltext_sources
+            ):
                 weak_or_missing_count += 1
 
         if avg_top_score < 1.5:
             return True
+
         if weak_or_missing_count >= 3:
             return True
+
         if strong_count < 2:
             return True
 
         return False
 
-    def _fetch_online_hits(self, q: str, n: int = 8) -> List[Dict[str, Any]]:
+    def _fetch_online_hits(
+        self,
+        q: str,
+        n: int = 8,
+    ) -> List[Dict[str, Any]]:
+
         if self.online_retriever is None:
             return []
 
         try:
-            papers = self.online_retriever.search_openalex(query=q, n=n, oa_only=True)
+
+            papers = (
+                self.online_retriever
+                .search_openalex(
+                    query=q,
+                    n=n,
+                    oa_only=True,
+                )
+            )
+
         except Exception:
             return []
 
-        return [self._paper_to_hit(p, score=0.15) for p in papers]
+        return [
+            self._paper_to_hit(
+                p,
+                score=0.15,
+            )
+            for p in papers
+        ]
 
-    def _get_candidate_hits(self, q: str, k: int) -> List[Dict[str, Any]]:
-        local_hits = self.search.search(q, k=max(k * 3, 15), include_text=True)
-        local_hits = rerank_hits(q, local_hits)
+    def _get_candidate_hits(
+        self,
+        q: str,
+        k: int,
+    ) -> List[Dict[str, Any]]:
+
+        local_hits = self.search.search(
+            q,
+            k=max(k * 3, 15),
+            include_text=True,
+        )
+
+        local_hits = rerank_hits(
+            q,
+            local_hits,
+        )
 
         combined = list(local_hits)
 
-        if self._needs_online_fallback(local_hits):
-            online_hits = self._fetch_online_hits(q, n=max(k * 2, 8))
-            combined.extend(online_hits)
+        if self._needs_online_fallback(
+            local_hits
+        ):
 
-        combined = self._dedupe_hits(combined)
+            online_hits = (
+                self._fetch_online_hits(
+                    q,
+                    n=max(k * 2, 8),
+                )
+            )
 
-        combined = rerank_hits(q, combined)
-        combined = self.semantic_reranker.rerank(q, combined)
+            combined.extend(
+                online_hits
+            )
+
+        combined = self._dedupe_hits(
+            combined
+        )
+
+        combined = rerank_hits(
+            q,
+            combined,
+        )
+
+        combined = (
+            self.semantic_reranker
+            .rerank(q, combined)
+        )
 
         return combined[:k]
 
@@ -558,16 +960,25 @@ class AnswerService:
         q: str,
         hits: List[Dict[str, Any]],
     ) -> List[Dict[str, Any]]:
-        all_evidences: List[Dict[str, Any]] = []
+
+        all_evidences: List[
+            Dict[str, Any]
+        ] = []
 
         for h in hits:
+
             base_text = (
                 h.get("reasoning_text")
-                or h.get("full_text_preview")
+                or h.get(
+                    "full_text_preview"
+                )
                 or h.get("abstract")
                 or ""
             )
-            base_text = clean_text(base_text)
+
+            base_text = clean_text(
+                base_text
+            )
 
             if not base_text.strip():
                 continue
@@ -580,18 +991,33 @@ class AnswerService:
             )
 
             for span_text, score in spans:
-                cleaned_span = clean_text(span_text)
+
+                cleaned_span = clean_text(
+                    span_text
+                )
+
                 if not cleaned_span:
                     continue
 
                 all_evidences.append(
                     {
-                        "paper_id": h["paper_id"],
+                        "paper_id": h[
+                            "paper_id"
+                        ],
                         "doi": h.get("doi"),
-                        "title": clean_text(h.get("title") or ""),
+                        "title": clean_text(
+                            h.get("title")
+                            or ""
+                        ),
                         "year": h.get("year"),
-                        "venue": h.get("venue"),
-                        "full_text_source": h.get("full_text_source"),
+                        "venue": h.get(
+                            "venue"
+                        ),
+                        "full_text_source": (
+                            h.get(
+                                "full_text_source"
+                            )
+                        ),
                         "span": cleaned_span,
                         "score": float(score),
                     }
@@ -611,35 +1037,77 @@ class AnswerService:
         fallback_conclusion: str,
         fallback_confidence: str,
     ) -> Tuple[str, str]:
+
         try:
-            llm_result = build_consensus_answer_with_llm(
-                question=q,
-                evidences=evidences,
-                citations=citations,
+
+            llm_result = (
+                build_consensus_answer_with_llm(
+                    question=q,
+                    evidences=evidences,
+                    citations=citations,
+                )
             )
+
         except Exception:
             llm_result = None
 
         if not llm_result:
-            return fallback_conclusion, fallback_confidence
+            return (
+                fallback_conclusion,
+                fallback_confidence,
+            )
 
-        conclusion = clean_text(llm_result.get("conclusion") or fallback_conclusion)
-        confidence = str(llm_result.get("confidence") or fallback_confidence).lower()
+        conclusion = clean_text(
+            llm_result.get(
+                "conclusion"
+            )
+            or fallback_conclusion
+        )
 
-        if confidence not in {"alta", "media", "baja"}:
-            confidence = fallback_confidence
+        confidence = str(
+            llm_result.get(
+                "confidence"
+            )
+            or fallback_confidence
+        ).lower()
 
-        return conclusion, confidence
+        if confidence not in {
+            "alta",
+            "media",
+            "baja",
+        }:
+            confidence = (
+                fallback_confidence
+            )
 
-    def answer(self, q: str, k: int = 8) -> Dict[str, Any]:
-        hits = self._get_candidate_hits(q, k=k)
+        return (
+            conclusion,
+            confidence,
+        )
+
+    def answer(
+        self,
+        q: str,
+        k: int = 8,
+    ) -> Dict[str, Any]:
+
+        hits = self._get_candidate_hits(
+            q,
+            k=k,
+        )
+
         query_analysis = analyze_query(q)
 
         if not hits:
+
             return {
                 "q": q,
                 "conclusion": clean_text(
-                    "No se han encontrado artículos relevantes con el dataset actual."
+                    (
+                        "No se han encontrado "
+                        "artículos relevantes "
+                        "con el dataset actual."
+                    )
                 ),
                 "confidence": "baja",
                 "confidence_score": 0.0,
@@ -653,84 +1121,159 @@ class AnswerService:
                     "neutral": 0,
                     "dominant_stance": "neutral",
                 },
-                "query_analysis": query_analysis.model_dump(),
+                "query_analysis": (
+                    query_analysis.model_dump()
+                ),
             }
 
-        citations: List[Dict[str, Any]] = [
+        citations: List[
+            Dict[str, Any]
+        ] = [
             {
                 "paper_id": h["paper_id"],
                 "doi": h.get("doi"),
-                "title": clean_text(h.get("title") or ""),
-                "citation_count": h.get("citation_count"),
+                "title": clean_text(
+                    h.get("title") or ""
+                ),
+                "citation_count": h.get(
+                    "citation_count"
+                ),
             }
             for h in hits
         ]
 
-        evidences = self._extract_evidences_from_hits(q, hits)
+        evidences = (
+            self._extract_evidences_from_hits(
+                q,
+                hits,
+            )
+        )
 
-       # query_outcome = detect_query_outcome(q)
-       # filtered_evidences: List[Dict[str, Any]] = []
+        stance_prompt = load_prompt(
+            "stance_classification_prompt.txt"
+        )
 
-        #for ev in evidences:
-         #   outcome_score = compute_outcome_match_score(
-          #      query_outcome=query_outcome,
-           #     paper_text=ev.get("span", ""),
-            #)
+        papers = self._hits_to_papers(
+            hits
+        )
 
-            #ev["outcome_match_score"] = outcome_score
-
-            #if outcome_score >= 0.5:
-             #   filtered_evidences.append(ev)
-
-        #if filtered_evidences:
-         #   evidences = filtered_evidences
-
-        stance_prompt = load_prompt("stance_classification_prompt.txt")
-        papers = self._hits_to_papers(hits)
         llm_client = LLMClient()
 
-        paper_stances = classify_papers_stances(
-            llm_client=llm_client,
-            question=q,
-            papers=papers,
-            prompt_template=stance_prompt,
+        paper_stances = (
+            classify_papers_stances(
+                llm_client=llm_client,
+                question=q,
+                papers=papers,
+                prompt_template=stance_prompt,
+            )
         )
 
-        evidence_breakdown = self._aggregate_paper_stances(paper_stances)
-
-        confidence_result = compute_confidence_score(
-            paper_stances=paper_stances,
-            evidence_breakdown=evidence_breakdown,
-            citations=citations,
-            evidences=evidences,
+        aggregation_result = (
+            aggregate_weighted_stances(
+                paper_stances=paper_stances,
+                hits=hits,
+            )
         )
 
-        conclusion, fallback_confidence = self._build_conclusion_from_stance_breakdown(
-            q=q,
-            evidence_breakdown=evidence_breakdown,
-            evidences=evidences,
-            n_hits=len(hits),
+        print(
+            "\n========== AGGREGATION PRO =========="
         )
 
-        confidence = confidence_result["confidence"]
+        print(aggregation_result)
 
-        conclusion, _ = self._try_llm_conclusion(
-            q=q,
-            evidences=evidences,
-            citations=citations,
-            fallback_conclusion=conclusion,
-            fallback_confidence=confidence,
+        print(
+            "====================================\n"
+        )
+
+        evidence_breakdown = {
+            "support": aggregation_result[
+                "support"
+            ],
+            "contradict": aggregation_result[
+                "contradict"
+            ],
+            "neutral": aggregation_result[
+                "neutral"
+            ],
+            "dominant_stance": (
+                aggregation_result[
+                    "dominant_stance"
+                ]
+            ),
+        }
+
+        confidence_result = (
+            compute_confidence_score(
+                paper_stances=paper_stances,
+                evidence_breakdown=evidence_breakdown,
+                citations=citations,
+                evidences=evidences,
+            )
+        )
+
+        conclusion, fallback_confidence = (
+            self
+            ._build_conclusion_from_stance_breakdown(
+                q=q,
+                evidence_breakdown=(
+                    evidence_breakdown
+                ),
+                evidences=evidences,
+                n_hits=len(hits),
+            )
+        )
+
+        confidence = confidence_result[
+            "confidence"
+        ]
+
+        conclusion, _ = (
+            self._try_llm_conclusion(
+                q=q,
+                evidences=evidences,
+                citations=citations,
+                fallback_conclusion=(
+                    conclusion
+                ),
+                fallback_confidence=(
+                    confidence
+                ),
+            )
+        )
+
+        presentation_output = (
+            build_consensus_api_output(
+                conclusion=conclusion,
+                confidence=confidence,
+                confidence_score=(
+                    confidence_result[
+                        "confidence_score"
+                    ]
+                ),
+                confidence_factors=(
+                    confidence_result[
+                        "confidence_factors"
+                    ]
+                ),
+                evidence_breakdown=(
+                    evidence_breakdown
+                ),
+                evidences=evidences,
+                paper_stances=[
+                    s.to_dict()
+                    for s in paper_stances
+                ],
+                citations=citations,
+                aggregation_result=(
+                    aggregation_result
+                ),
+            )
         )
 
         return {
             "q": q,
-            "conclusion": conclusion,
-            "confidence": confidence,
-            "confidence_score": confidence_result["confidence_score"],
-            "confidence_factors": confidence_result["confidence_factors"],
-            "citations": citations,
-            "evidences": evidences,
-            "paper_stances": [s.to_dict() for s in paper_stances],
-            "evidence_breakdown": evidence_breakdown,
-            "query_analysis": query_analysis.model_dump(),
+            **presentation_output,
+            "query_analysis": (
+                query_analysis.model_dump()
+            ),
         }
